@@ -986,17 +986,32 @@ const trackWhisperUsage = async (userId, audioSeconds) => {
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
-  const token = req.cookies.authToken
+  // Try to get token from Authorization header first, then from cookies
+  let token = null;
+  
+  // Check Authorization header (Bearer token)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    console.log('🔐 Using Authorization header token');
+  } else if (req.cookies.authToken) {
+    // Fallback to cookie-based authentication
+    token = req.cookies.authToken;
+    console.log('🍪 Using cookie-based token');
+  }
 
   if (!token) {
+    console.log('❌ No token found in Authorization header or cookies');
     return res.status(401).json({ error: "Access denied. No token provided." })
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JSON_WEB_TOKEN_SECRET)
     req.user = decoded
+    console.log('✅ Token verified for user:', decoded.userId);
     next()
   } catch (error) {
+    console.log('❌ Token verification failed:', error.message);
     res.status(403).json({ error: "Invalid token." })
   }
 }
@@ -1629,6 +1644,7 @@ app.post("/api/auth/login", async (req, res) => {
 
     res.json({
       message: "Login successful",
+      token: token, // Include token in response for React Native
       user: {
         id: user._id,
         name: user.name,
